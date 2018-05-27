@@ -21,6 +21,7 @@ class Agent(object):
         return self.price
 
     def pay(self, payment):
+        assert payment > self.price
         self.bank -= self.cost
         self.bank += payment
 
@@ -43,11 +44,11 @@ def get_edge_list(path):
 
 
 #### Game parameters ####
-# this param slows stuff down a bit
-use_erdos_renyi_graph = False  # else complete graph
+use_erdos_renyi_graph = True # else complete graph
 num_nodes = 20
 # 2 times the likely connected probability
 erg_prob = 2 * 2 * math.log(num_nodes) / num_nodes
+vcg_pay = True
 
 #### Runtime parameters ####
 iters = 2500
@@ -131,18 +132,21 @@ for iteration in range(iters * batch_size):
         saved_data = G.edges[edge]
         saved_edge = edge
 
-        # Calculate externality of the player
-        G.remove_edge(*edge)
-        new_path = nx.shortest_path(G, source=source, target=sink, weight="price")
-        new_edge_list = get_edge_list(new_path)
-        new_price = 0
-        for new_edge in new_edge_list:
-            new_price += G.edges[new_edge]["price"]
-        alt_price = price - agent_price
-        G.add_edge(*saved_edge, **saved_data)
+        if vcg_pay:
+            # Calculate externality of the player
+            G.remove_edge(*edge)
+            new_path = nx.shortest_path(G, source=source, target=sink, weight="price")
+            new_edge_list = get_edge_list(new_path)
+            new_price = 0
+            for new_edge in new_edge_list:
+                new_price += G.edges[new_edge]["price"]
+            alt_price = price - agent_price
+            G.add_edge(*saved_edge, **saved_data)
 
-        # Play the player their externality
-        edge_map[edge].pay(new_price - alt_price)
+            # Play the player their externality
+            edge_map[edge].pay(new_price - alt_price)
+        else:
+            edge_map[edge].pay(agent_price)
 
     # Prune poor agents and clone wealthy agents each batch
     if iteration % batch_size == 0:
